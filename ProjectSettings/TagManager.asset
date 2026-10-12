@@ -1,0 +1,54 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!78 &1
+TagManager:
+  serializedVersion: 2
+  tags:
+  - Ground
+  - Area
+  - Enemy
+  - coolTimeImg
+  - Item
+  - UI
+  - SceneUI
+  - PopupUI
+  - WeaponController
+  - WorldUI
+  - Weapon
+  layers:
+  - Default
+  - TransparentFX
+  - Ignore Raycast
+  - 
+  - Water
+  - UI
+  - 
+  - Player
+  - Enemy
+  - Weapon
+  - Boss
+  - ItemBox
+  - Exp
+  - Health
+  - Magnet
+  - 
+  - PlayerUI
+  - MainMenuUI
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
+  m_SortingLayers:
+  - name: Default
+    uniqueID: 0
+    locked: 0

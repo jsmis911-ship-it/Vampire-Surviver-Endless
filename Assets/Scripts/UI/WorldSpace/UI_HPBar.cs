@@ -1,0 +1,52 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.UI;
+public class UI_HPBar : UI_Base
+{
+    enum GameObjects
+    {
+        HPBar,
+    }
+
+    private Stat _stat;
+  
+    public override void Init()
+    {
+        Bind<GameObject>(typeof(GameObjects));
+    }
+
+    private void Start()
+    {
+        _stat = transform.parent.GetComponent<Stat>();
+    }
+
+    private void Update()
+    {
+        Transform parent = transform.parent;
+        if (parent == null)
+            return;
+        transform.position = parent.position;
+
+        if (_stat == null)
+            _stat = parent.GetComponent<Stat>();
+        if (_stat == null)
+            return;
+
+        float ratio = _stat.HP / (float)_stat.MaxHP;
+        setHpRatio(ratio);
+    }
+
+    public void setHpRatio(float ratio)
+    {
+        if (ratio < 0)
+            ratio = 0;
+        if (ratio > 1)
+            ratio = 1;
+        GameObject hpBar = GetObject((int)GameObjects.HPBar);
+        if (hpBar == null)
+            return;
+        hpBar.GetComponent<Slider>().value = ratio;
+    }
+}

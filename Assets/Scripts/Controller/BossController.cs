@@ -1,0 +1,259 @@
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class BossController : BaseController
+{
+    public GameObject _hudDamageText;
+
+    protected EnemyStat _stat;
+    public RuntimeAnimatorController[] _animeCon;
+    public Rigidbody2D _target;
+    bool _isLive = true;
+    bool _isAttack = false;
+    public float _skillcool = 8f;
+    public int _randStat = 50;
+    bool _useSkill = false;
+
+    protected override void Init()
+    {
+        _stat = GetComponent<EnemyStat>();
+        _rigid = GetComponent<Rigidbody2D>();
+        _sprite = GetComponent<SpriteRenderer>();
+        _anime = GetComponent<Animator>();
+        _type = Define.WorldObject.Enemy;
+        _target = Managers.Game.getPlayer().GetComponent<Rigidbody2D>();
+        _stat.MonsterStyle = Define.MonsterStyle.unknown;
+        _stat.MonsterType = Define.MonsterType.Boss;
+
+        // 参照角色上方小血条逻辑给Boss加头顶血条
+        if (gameObject.GetComponentInChildren<UI_HPBar>() == null)
+            Managers.UI.MakeWorldSpaceUI<UI_HPBar>(transform, "UI_HPBar");
+
+        // 伤害数字预制体未在 Inspector 赋值时，运行时自动加载
+        if (_hudDamageText == null)
+            _hudDamageText = Managers.Resource.Load<GameObject>("Prefabs/UI/WorldSpace/Damage Text");
+    }
+
+    private void FixedUpdate()
+    {
+        if (LanSession.Active)
+        {
+            if (!LanSession.Instance.CanSimulate) return;
+            _target = LanSession.Instance.NearestTarget(_rigid.position);
+        }
+        if (_target == null) return;
+        if (!_isLive)
+            return;
+        Vector2 dirVec = _target.position - _rigid.position;
+        if(!_useSkill && dirVec.magnitude < 10)
+        {
+            float rd = Random.Range(0, 100f);
+
+            if (rd < _randStat)
+            {
+                Debug.Log("Play Skill1");
+                Skill1();
+            }
+
+            else
+            {
+                Debug.Log("Play Skill2");
+                Skill2();
+            }
+                
+        }
+        else if(_useSkill && _isAttack)
+        {
+            _rigid.velocity = Vector2.zero;
+        }
+        else if (!_isAttack)
+        {
+            Vector2 nextVec = dirVec.normalized * (_stat.MoveSpeed * Time.fixedDeltaTime);
+            _rigid.MovePosition(_rigid.position + nextVec);
+            _rigid.velocity = Vector2.zero;
+        }
+    }
+
+    public void SetExp(int level)
+    {
+        _stat.ExpPoint = 10 * level;
+        _stat.ExpMul = 10;
+
+    }
+
+    private void LateUpdate()
+    {
+        // 防御：死亡后或目标/自身刚体已被销毁（通关切场景）时跳过，避免 MissingReferenceException
+        if (!_isLive || _target == null || _rigid == null)
+            return;
+        _sprite.flipX = (_target.position.x - _rigid.position.x < 0) ? true : false;
+    }
+
+    private void OnEnable()
+    {
+        _isLive = true;
+        _stat.HP = _stat.MaxHP;
+    }
+
+
+
+    void StartSkill1()
+    {
+        _anime.Play("Mushromm_Attack1", -1, 0);
+    }
+    void StartTimeStop()
+    {
+        Debug.Log("StartTimeStop!");
+
+        StartCoroutine(TimePlay());
+    }
+
+    IEnumerator TimePlay()
+    {
+        if (LanSession.Active)
+        {
+            LanSession.Instance.PauseForBoss(2f);
+            yield return new WaitForSecondsRealtime(2f);
+            while (LanSession.Active && LanSession.Instance.State.phase == LanPhase.Upgrade) yield return null;
+            if (!LanSession.Active || LanSession.Instance.State.phase != LanPhase.Playing) yield break;
+            _target = LanSession.Instance.NearestTarget(_rigid.position);
+            if (_target == null) yield break;
+            _rigid.position = _target.position + Vector2.one;
+            _rigid.velocity = Vector2.zero;
+            _anime.Play("Mushromm_Run");
+            _isAttack = false;
+            yield return new WaitForSeconds(_skillcool);
+            _useSkill = false;
+            yield break;
+        }
+        UI_TimeStop TimeStopUI = Managers.UI.ShowPopupUI<UI_TimeStop>(name:null,true);
+        TimeStopUI.gameObject.GetOrAddComponent<Canvas>().sortingOrder = 0;
+        Managers.GamePause();
+        float time = 0;
+        while(time < 2f)
+        {
+            if(Managers.UI.GetPopupUICount() < 2)
+            {
+                time += Time.fixedDeltaTime;
+            }
+            yield return new WaitForSecondsRealtime(Time.fixedDeltaTime);
+        }
+        
+
+        Debug.Log("Play!");
+        Managers.UI.CloseAllGroupPopupUI(TimeStopUI.PopupID);
+        int[] num = new int[] { -1, 1 };
+        int wRand = Random.Range(0, num.Length);
+        int hRand = Random.Range(0, num.Length);
+
+        _rigid.position = _target.position + new Vector2(num[wRand], num[hRand]);
+        _rigid.velocity = Vector2.zero;
+        _anime.Play("Mushromm_Run");
+
+        yield return new WaitForSecondsRealtime(Time.fixedDeltaTime);
+
+        _isAttack = false;
+        yield return new WaitForSeconds(_skillcool);
+        _useSkill = false;
+    }
+    void Skill1()
+    {
+        _useSkill = true;
+        _isAttack = true;
+        _anime.Play("Mushromm_AttackReady1", -1, 0);
+    }
+
+
+    void PlayRush()
+    {
+        Debug.Log("Rush!");
+        _anime.SetBool("doRush", true);
+        StartCoroutine(Rush());
+    }
+
+    IEnumerator Rush()
+    {
+        for(int i = 0; i<3; i++)
+        {
+            Vector3 targetPosition = _target.position;
+            Debug.Log($"player Position : {targetPosition}");
+            Vector3 dirVec = (targetPosition - transform.position).normalized;
+            float time = 0;
+            float RushSpeed = ((targetPosition + (dirVec * 2)) - transform.position).magnitude * Time.fixedDeltaTime;
+            while (time < 1)
+            {
+                Vector2 nextVec = dirVec * RushSpeed;
+                _rigid.MovePosition(_rigid.position + nextVec);
+                _rigid.velocity = Vector2.zero;
+                yield return new WaitForFixedUpdate();
+                time += Time.fixedDeltaTime;
+            }
+            if(i < 2)
+                yield return new WaitForSeconds(0.5f);
+        }
+        _anime.SetBool("doRush", false);
+        _anime.Play("Mushromm_Run");
+        _isAttack = false;
+        yield return new WaitForSeconds(_skillcool);
+        _useSkill = false;
+
+
+    }
+
+    void Skill2()
+    {
+        _useSkill = true;
+        _isAttack = true;
+        _anime.Play("Mushromm_AttackReady2", -1, 0);
+    }
+
+    public override void OnDamaged(int damage, float force = 0)
+    {
+        if (!_isLive || (LanSession.Active && !LanSession.Instance.CanSimulate)) return;
+        Managers.Event.PlayHitEnemyEffectSound();
+        int calculateDamage = Mathf.Max(damage - _stat.Defense, 1);
+        _stat.HP -= calculateDamage;
+        _rigid.AddForce((_rigid.position - _target.position).normalized * (force * 500f));
+        FloatDamageText(calculateDamage);
+
+        OnDead();
+    }
+
+
+    void FloatDamageText(int damage)
+    {
+        if (_hudDamageText == null)
+            return;
+        GameObject hudText = Instantiate(_hudDamageText); // ������ �ؽ�Ʈ ������Ʈ
+        hudText.transform.position = transform.position + Vector3.up * 1.5f; // ǥ�õ� ��ġ
+        hudText.GetComponent<UI_DamageText>()._damage = damage; // ������ ����
+    }
+
+    public override void OnDead()
+    {
+        if (_isLive && _stat.HP <= 0)
+        {
+            _isLive = false;
+            _stat.HP = 0;
+
+            SpawnExp();
+            _anime.Play("Mushromm_Death");
+            if (LanSession.Active) { LanSession.Instance.Finish(true); return; }
+            Managers.UI.ShowPopupUI<UI_GameVictory>();
+            Managers.GamePause();
+        }
+    }
+
+    void SpawnExp()
+    {
+        for(int i = 0; i<5; i++)
+        {
+            GameObject expGo = Managers.Game.Spawn(Define.WorldObject.Unknown, "Content/Exp");
+            Exp_Item expPoint = expGo.GetComponent<Exp_Item>();
+            expGo.GetComponent<SpriteRenderer>().sprite = expPoint._sprite[2];
+            expPoint.SetExp(_stat.ExpPoint, _stat.ExpMul);
+            expGo.transform.position = transform.position + new Vector3(Random.Range(-1f, 1f), Random.Range(-1f, 1f), 0);
+        }
+    }
+}

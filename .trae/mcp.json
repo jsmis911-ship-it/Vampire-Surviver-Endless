@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "unity-mcp": {
+      "url": "http://localhost:25847/mcp",
+      "headers": {
+        "Authorization": "Bearer QMHRSxpwOL923_bORnPICRUqSeY8u6fZyYWpegWA_CA"
+      }
+    }
+  }
+}
